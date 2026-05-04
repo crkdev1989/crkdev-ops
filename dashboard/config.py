@@ -1,6 +1,7 @@
 from pathlib import Path
 
 K6_SPECTRAL_PATH = "/opt/crkdev/spectral"
+CHECKPOINTS_PATH = "/opt/crkdev/spectral/checkpoints"
 PI_TAILSCALE_IP = "100.76.151.115"
 HETZNER_TAILSCALE_IP = "100.92.177.81"
 DASHBOARD_PORT = 3000

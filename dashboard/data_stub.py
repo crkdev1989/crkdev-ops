@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from random import Random
 
 from config import REVENUE_GOAL, REVENUE_WEEKS
+from data_real import read_checkpoint
 
 _rng = Random(42)
 NICHES = ["chiro", "medspa", "pi_lawyers"]
@@ -11,20 +12,26 @@ NICHES = ["chiro", "medspa", "pi_lawyers"]
 
 def get_niche_statuses() -> list[dict]:
     now = datetime.now()
-    # STUB: realistic fake niche status payload
+    chiro_checkpoint = read_checkpoint("chiro")
+    chiro_processed = chiro_checkpoint.get("rows_processed", 0)
+    chiro_expected = chiro_checkpoint.get("total_expected_rows", 150000) or 150000
+    chiro_remaining = max(0, chiro_expected - chiro_processed)
+    chiro_status = "running" if chiro_remaining > 0 else "idle"
+    # STUB: realistic fake niche status payload (except chiro progress from checkpoint)
     return [
         {
             "name": "chiro",
-            "total_records": 126_450,
+            "total_records": chiro_expected,
             "last_scrape": (now - timedelta(minutes=5)).isoformat(timespec="seconds"),
-            "status": "running",
-            "records_today": 8450,
+            "status": chiro_status,
+            "records_today": chiro_processed,
             "email_hit_rate": 62.3,
             "dedup_rate": 18.1,
             "email_breakdown": {"direct": 51, "generic": 11, "none": 38},
             "records_per_min": 112,
-            "remaining_records": 1540,
+            "remaining_records": chiro_remaining,
             "elapsed_minutes": 74,
+            "checkpoint": chiro_checkpoint,
         },
         {
             "name": "medspa",
