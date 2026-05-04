@@ -1,0 +1,83 @@
+body {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+}
+
+.metrics {
+  font-family: "Space Mono", monospace;
+}
+
+.card {
+  background: rgba(13, 22, 44, 0.58);
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  padding: 1rem;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+}
+
+.widget-title {
+  color: #2EA9E6;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 1.8s infinite ease-in-out;
+}
+
+.status-dot.healthy,
+.status-dot.running {
+  background: #22c55e;
+}
+
+.status-dot.idle {
+  background: #facc15;
+}
+
+.status-dot.error,
+.status-dot.hung {
+  background: #ef4444;
+}
+
+.btn {
+  border: 1px solid #2EA9E6;
+  color: #2EA9E6;
+  border-radius: 8px;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.875rem;
+}
+
+.btn:hover {
+  background: rgba(46, 169, 230, 0.15);
+}
+
+.btn.danger {
+  border-color: #ef4444;
+  color: #fca5a5;
+}
+
+table th,
+table td {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+  padding: 0.4rem;
+}
+
+@keyframes pulse {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  70% {
+    transform: scale(1.1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+}

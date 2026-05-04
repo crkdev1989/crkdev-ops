@@ -1,0 +1,22 @@
+{
+  "targets": [
+    {
+      "company": "HydraFacial",
+      "sent_date": "2026-05-01",
+      "follow_up_due": "2026-05-05",
+      "status": "sent"
+    },
+    {
+      "company": "InMode",
+      "sent_date": "2026-04-29",
+      "follow_up_due": "2026-05-04",
+      "status": "followed up"
+    },
+    {
+      "company": "Merz",
+      "sent_date": "2026-04-27",
+      "follow_up_due": "2026-05-02",
+      "status": "replied"
+    }
+  ]
+}

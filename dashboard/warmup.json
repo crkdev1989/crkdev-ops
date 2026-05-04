@@ -1,0 +1,16 @@
+{
+  "accounts": [
+    {
+      "account": "outreach.crkdev.com",
+      "days_warmed": 24,
+      "daily_volume": 35,
+      "status": "healthy"
+    },
+    {
+      "account": "craig@crkdev.com",
+      "days_warmed": 18,
+      "daily_volume": 28,
+      "status": "ramping"
+    }
+  ]
+}

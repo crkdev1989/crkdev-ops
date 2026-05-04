@@ -1,0 +1,23 @@
+{
+  "chiro": {
+    "Gumroad": true,
+    "Datarade": false,
+    "Fiverr": true,
+    "Instantly": false,
+    "Apollo": true
+  },
+  "medspa": {
+    "Gumroad": true,
+    "Datarade": true,
+    "Fiverr": false,
+    "Instantly": false,
+    "Apollo": false
+  },
+  "pi_lawyers": {
+    "Gumroad": true,
+    "Datarade": false,
+    "Fiverr": false,
+    "Instantly": true,
+    "Apollo": true
+  }
+}

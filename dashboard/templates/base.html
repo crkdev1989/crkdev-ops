@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}CRK Dev Ops Dashboard{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="stylesheet" href="/static/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body class="min-h-screen bg-[#040813] text-slate-100">
+  {% block content %}{% endblock %}
+  <div id="toast" class="hidden fixed bottom-4 right-4 rounded-lg bg-[#2EA9E6] text-[#040813] px-4 py-2 font-semibold"></div>
+  <script>
+    function showToast(msg) {
+      const toast = document.getElementById("toast");
+      toast.textContent = msg;
+      toast.classList.remove("hidden");
+      setTimeout(() => toast.classList.add("hidden"), 2800);
+    }
+    function updateClock() {
+      const el = document.getElementById("live-clock");
+      if (!el) return;
+      el.textContent = new Date().toLocaleString();
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+  </script>
+</body>
+</html>
