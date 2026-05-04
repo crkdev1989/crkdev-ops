@@ -21,6 +21,26 @@ CHECKPOINT_DIR_MAP = {
 CHIRO_PROGRESS_HISTORY_PATH = Path("/opt/crkdev/crkdev-ops/dashboard/chiro_progress_history.json")
 CHIRO_JSONL_PATH = Path("/mnt/passport/scraper-runs/chiro_national_gmaps.jsonl")
 CHIRO_DATASET_DIR = Path("/mnt/passport/scraper-runs/chiro_national")
+SCRAPER_RUNS_ROOT = Path("/mnt/passport/scraper-runs")
+
+MEDSPA_CHECKPOINT_FILE = Path(CHECKPOINTS_PATH) / "medspa_500cities" / "checkpoint.json"
+MEDSPA_EXPECTED_RECORDS = 7534
+
+# Packaged dataset metrics (fixed)
+MEDSPA_QUALITY = {
+    "total_records": 7534,
+    "email_hit_rate": 60.8,
+    "email_breakdown_counts": {"direct": 2317, "generic": 2264, "none": 2953},
+    "dedup_rate": 0.0,
+    "dedup_na": True,
+}
+
+PI_LAWYERS_QUALITY = {
+    "total_records": 9810,
+    "email_hit_rate": 35.8,
+    "email_breakdown_counts": {"direct": 2469, "generic": 1043, "none": 6298},
+    "dedup_na": True,
+}
 
 
 def _parse_iso(ts: str) -> datetime | None:
@@ -111,6 +131,98 @@ def _status_from_checkpoint(checkpoint_file: Path, remaining_rows: int) -> tuple
     return "running", modified_at.isoformat()
 
 
+def format_last_scrape_display(iso_value: str | None) -> str:
+    if not iso_value:
+        return "—"
+    try:
+        dt = datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return iso_value
+    hour = dt.hour % 12 or 12
+    ampm = "AM" if dt.hour < 12 else "PM"
+    return f"{dt.strftime('%b')} {dt.day}, {dt.year} {hour}:{dt.minute:02d} {ampm}"
+
+
+def read_medspa_checkpoint() -> dict:
+    checkpoint_file = MEDSPA_CHECKPOINT_FILE
+    expected = MEDSPA_EXPECTED_RECORDS
+    if not checkpoint_file.exists():
+        return {
+            "exists": False,
+            "checkpoint_file": str(checkpoint_file),
+            "records_count": 0,
+            "last_page": 0,
+            "run_id": "",
+            "total_expected_records": expected,
+            "remaining_records": expected,
+            "progress_pct": 0.0,
+            "status": "error",
+            "last_scrape": None,
+            "quality": MEDSPA_QUALITY,
+        }
+
+    raw = json.loads(checkpoint_file.read_text(encoding="utf-8"))
+    records_count = int(raw.get("records_count", 0))
+    remaining = max(0, expected - records_count)
+    progress_pct = (min(records_count, expected) / expected * 100) if expected else 0.0
+    modified_at = datetime.fromtimestamp(checkpoint_file.stat().st_mtime).replace(microsecond=0)
+    # Scrape complete for medspa (idle).
+    status = "idle"
+    last_scrape = modified_at.isoformat()
+
+    return {
+        "exists": True,
+        "checkpoint_file": str(checkpoint_file),
+        "records_count": records_count,
+        "last_page": int(raw.get("last_page", 0)),
+        "run_id": raw.get("run_id", ""),
+        "input_url": raw.get("input_url", ""),
+        "mode": raw.get("mode", ""),
+        "total_expected_records": expected,
+        "remaining_records": remaining,
+        "progress_pct": round(progress_pct, 2),
+        "status": status,
+        "last_scrape": last_scrape,
+        "quality": MEDSPA_QUALITY,
+    }
+
+
+def read_avvo_checkpoints() -> dict:
+    """Sum records_count across avvo_pi_<state>/checkpoint.json under CHECKPOINTS_PATH."""
+    root = Path(CHECKPOINTS_PATH)
+    total_records = 0
+    files_read = 0
+    latest_mtime: float | None = None
+    latest_path: Path | None = None
+
+    for cp in sorted(root.glob("avvo_pi_*/checkpoint.json")):
+        try:
+            raw = json.loads(cp.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        total_records += int(raw.get("records_count", 0))
+        files_read += 1
+        try:
+            m = cp.stat().st_mtime
+        except OSError:
+            continue
+        if latest_mtime is None or m > latest_mtime:
+            latest_mtime = m
+            latest_path = cp
+
+    last_scrape = None
+    if latest_mtime is not None:
+        last_scrape = datetime.fromtimestamp(latest_mtime).replace(microsecond=0).isoformat()
+
+    return {
+        "total_records_summed": total_records,
+        "files_read": files_read,
+        "last_scrape": last_scrape,
+        "latest_checkpoint_file": str(latest_path) if latest_path else None,
+        "quality": PI_LAWYERS_QUALITY,
+    }
+
+
 def read_checkpoint(niche: str) -> dict:
     checkpoint_dir = CHECKPOINT_DIR_MAP.get(niche, niche)
     checkpoint_file = (
@@ -170,25 +282,29 @@ def read_checkpoint(niche: str) -> dict:
     }
 
 
-def get_chiro_storage() -> dict:
-    total, used, free = shutil.disk_usage(PASSPORT_MOUNT)
-
-    def _dir_size(path: Path) -> int:
-        if not path.exists():
-            return 0
-        if path.is_file():
+def _path_size_bytes(path: Path) -> int:
+    if not path.exists():
+        return 0
+    if path.is_file():
+        try:
             return path.stat().st_size
-        total_size = 0
-        for root, _, files in os.walk(path):
-            for name in files:
-                file_path = Path(root) / name
-                try:
-                    total_size += os.path.getsize(file_path)
-                except OSError:
-                    continue
-        return total_size
+        except OSError:
+            return 0
+    total_size = 0
+    for root, _, files in os.walk(path):
+        for name in files:
+            file_path = Path(root) / name
+            try:
+                total_size += os.path.getsize(file_path)
+            except OSError:
+                continue
+    return total_size
 
-    dataset_size_bytes = _dir_size(CHIRO_DATASET_DIR)
+
+def get_chiro_storage() -> dict:
+    """Disk usage + chiro dataset size only (used by legacy callers)."""
+    total, used, free = shutil.disk_usage(PASSPORT_MOUNT)
+    dataset_size_bytes = _path_size_bytes(CHIRO_DATASET_DIR)
     return {
         "total_gb": round(total / (1024**3), 2),
         "used_gb": round(used / (1024**3), 2),
@@ -197,10 +313,50 @@ def get_chiro_storage() -> dict:
     }
 
 
+def get_storage_monitor() -> dict:
+    """Passport disk totals + per-niche dataset sizes under scraper-runs."""
+    total, used, free = shutil.disk_usage(PASSPORT_MOUNT)
+    chiro_gb = round(_path_size_bytes(CHIRO_DATASET_DIR) / (1024**3), 2)
+
+    medspa_bytes = 0
+    pi_bytes = 0
+    seen_pi: set[str] = set()
+
+    if SCRAPER_RUNS_ROOT.exists():
+        for entry in SCRAPER_RUNS_ROOT.iterdir():
+            try:
+                name_l = entry.name.lower()
+            except (OSError, ValueError):
+                continue
+            size_b = _path_size_bytes(entry)
+            if "medspa" in name_l:
+                medspa_bytes += size_b
+            # *avvo* or *pi* per spec; exclude obvious false positives like "pipeline"
+            pi_match = ("avvo" in name_l) or (
+                "pi" in name_l and "pipeline" not in name_l
+            )
+            if pi_match:
+                key = str(entry.resolve())
+                if key not in seen_pi:
+                    seen_pi.add(key)
+                    pi_bytes += size_b
+
+    return {
+        "total_gb": round(total / (1024**3), 2),
+        "used_gb": round(used / (1024**3), 2),
+        "free_gb": round(free / (1024**3), 2),
+        "per_niche_gb": {
+            "chiro": chiro_gb,
+            "medspa": round(medspa_bytes / (1024**3), 2),
+            "pi_lawyers": round(pi_bytes / (1024**3), 2),
+        },
+    }
+
+
 def get_k6_machine_health() -> dict:
     disk = psutil.disk_usage("/")
     return {
-        "cpu": round(psutil.cpu_percent(interval=0.25), 1),
+        "cpu": round(psutil.cpu_percent(interval=1), 1),
         "ram": round(psutil.virtual_memory().percent, 1),
         "disk": round(disk.percent, 1),
         "status": "healthy",

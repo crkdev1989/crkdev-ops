@@ -8,12 +8,12 @@
     <div class="metrics mt-3 grid grid-cols-2 gap-2 text-sm">
       <div>Total: {{ "{:,}".format(niche.total_records) }}</div>
       <div>Today: {{ "{:,}".format(niche.records_today) }}</div>
-      <div>Hit rate: {{ niche.email_hit_rate }}%</div>
-      <div>Dedup: {{ niche.dedup_rate }}%</div>
-      <div>Last: {{ niche.last_scrape }}</div>
+      <div>Hit rate: {% if niche.email_hit_rate is not none %}{{ niche.email_hit_rate }}%{% else %}—{% endif %}</div>
+      <div>Dedup: {% if niche.dedup_na %}N/A{% elif niche.dedup_rate is not none %}{{ niche.dedup_rate }}%{% else %}—{% endif %}</div>
+      <div>Last: {{ niche.last_scrape_display }}</div>
       <div>Status: {{ niche.status }}</div>
     </div>
-    <div class="mt-2 text-xs text-slate-300">Direct/Generic/None: {{ niche.email_breakdown.direct }} / {{ niche.email_breakdown.generic }} / {{ niche.email_breakdown.none }}</div>
+    <div class="mt-2 text-xs text-slate-300">Direct/Generic/None: {{ niche.email_breakdown.direct }}{{ niche.email_breakdown_suffix }} / {{ niche.email_breakdown.generic }}{{ niche.email_breakdown_suffix }} / {{ niche.email_breakdown.none }}{{ niche.email_breakdown_suffix }}</div>
     <div class="mt-3 flex gap-2">
       <button class="btn" hx-post="/api/queue/add" hx-vals='{"niche":"{{ niche.name }}"}' hx-swap="none" hx-on::after-request="showToast('Added {{ niche.name }} to queue')">Add to Queue</button>
       <button class="btn danger {% if niche.status != 'hung' and niche.status != 'running' %}opacity-50{% endif %}" onclick="confirmRestart('{{ niche.name }}')">Restart</button>

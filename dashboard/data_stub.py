@@ -5,10 +5,13 @@ from random import Random
 
 from config import REVENUE_GOAL, REVENUE_WEEKS
 from data_real import (
+    format_last_scrape_display,
     get_chiro_quality_metrics,
-    get_chiro_storage,
     get_k6_machine_health,
+    get_storage_monitor as build_storage_monitor,
+    read_avvo_checkpoints,
     read_checkpoint,
+    read_medspa_checkpoint,
 )
 
 _rng = Random(42)
@@ -33,20 +36,34 @@ def get_niche_statuses() -> list[dict]:
                 elapsed_minutes += int(chunk[:-1]) * 60
             elif chunk.endswith("m"):
                 elapsed_minutes += int(chunk[:-1])
+
+    medspa = read_medspa_checkpoint()
+    mq = medspa["quality"]
+    mcounts = mq["email_breakdown_counts"]
+
+    avvo = read_avvo_checkpoints()
+    pq = avvo["quality"]
+    pcounts = pq["email_breakdown_counts"]
+
     return [
         {
             "name": "chiro",
             "total_records": chiro_expected,
             "last_scrape": chiro_checkpoint.get("last_scrape") or now.isoformat(timespec="seconds"),
+            "last_scrape_display": format_last_scrape_display(
+                chiro_checkpoint.get("last_scrape") or now.isoformat(timespec="seconds")
+            ),
             "status": chiro_checkpoint.get("status", "error"),
             "records_today": chiro_processed,
             "email_hit_rate": chiro_quality["email_hit_rate"],
             "dedup_rate": None,
+            "dedup_na": False,
             "email_breakdown": {
                 "direct": chiro_quality["direct_pct"],
                 "generic": chiro_quality["generic_pct"],
                 "none": chiro_quality["none_pct"],
             },
+            "email_breakdown_suffix": "%",
             "records_per_min": chiro_checkpoint.get("rpm"),
             "remaining_records": chiro_remaining,
             "elapsed_minutes": elapsed_minutes,
@@ -56,41 +73,51 @@ def get_niche_statuses() -> list[dict]:
         },
         {
             "name": "medspa",
-            "total_records": 98_201,
-            "last_scrape": (now - timedelta(minutes=22)).isoformat(timespec="seconds"),
-            "status": "idle",
-            "records_today": 3210,
-            "email_hit_rate": 58.6,
-            "dedup_rate": 20.2,
-            "email_breakdown": {"direct": 47, "generic": 12, "none": 41},
-            "records_per_min": 0,
-            "remaining_records": 0,
+            "total_records": mq["total_records"],
+            "last_scrape": medspa.get("last_scrape") or now.isoformat(timespec="seconds"),
+            "last_scrape_display": format_last_scrape_display(medspa.get("last_scrape")),
+            "status": medspa.get("status", "idle"),
+            "records_today": medspa.get("records_count", 0),
+            "email_hit_rate": mq["email_hit_rate"],
+            "dedup_rate": mq["dedup_rate"],
+            "dedup_na": mq["dedup_na"],
+            "email_breakdown": {
+                "direct": mcounts["direct"],
+                "generic": mcounts["generic"],
+                "none": mcounts["none"],
+            },
+            "email_breakdown_suffix": "",
+            "records_per_min": None,
+            "remaining_records": medspa.get("remaining_records", 0),
             "elapsed_minutes": 0,
+            "checkpoint": medspa,
         },
         {
             "name": "pi_lawyers",
-            "total_records": 143_903,
-            "last_scrape": (now - timedelta(minutes=16)).isoformat(timespec="seconds"),
-            "status": "hung",
-            "records_today": 6770,
-            "email_hit_rate": 55.2,
-            "dedup_rate": 15.7,
-            "email_breakdown": {"direct": 44, "generic": 11, "none": 45},
-            "records_per_min": 18,
-            "remaining_records": 2100,
-            "elapsed_minutes": 96,
+            "total_records": pq["total_records"],
+            "last_scrape": avvo.get("last_scrape") or now.isoformat(timespec="seconds"),
+            "last_scrape_display": format_last_scrape_display(avvo.get("last_scrape")),
+            "status": "idle",
+            "records_today": avvo.get("total_records_summed", 0),
+            "email_hit_rate": pq["email_hit_rate"],
+            "dedup_rate": None,
+            "dedup_na": pq["dedup_na"],
+            "email_breakdown": {
+                "direct": pcounts["direct"],
+                "generic": pcounts["generic"],
+                "none": pcounts["none"],
+            },
+            "email_breakdown_suffix": "",
+            "records_per_min": None,
+            "remaining_records": 0,
+            "elapsed_minutes": 0,
+            "checkpoint": avvo,
         },
     ]
 
 
 def get_storage_monitor() -> dict:
-    chiro_storage = get_chiro_storage()
-    return {
-        "total_gb": chiro_storage["total_gb"],
-        "used_gb": chiro_storage["used_gb"],
-        "free_gb": chiro_storage["free_gb"],
-        "per_niche_gb": {"chiro": chiro_storage["chiro_dataset_gb"], "medspa": 281, "pi_lawyers": 409},
-    }
+    return build_storage_monitor()
 
 
 def get_machine_health() -> dict:
