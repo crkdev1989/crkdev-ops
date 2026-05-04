@@ -4,7 +4,12 @@ from datetime import datetime, timedelta
 from random import Random
 
 from config import REVENUE_GOAL, REVENUE_WEEKS
-from data_real import read_checkpoint
+from data_real import (
+    get_chiro_quality_metrics,
+    get_chiro_storage,
+    get_k6_machine_health,
+    read_checkpoint,
+)
 
 _rng = Random(42)
 NICHES = ["chiro", "medspa", "pi_lawyers"]
@@ -13,24 +18,40 @@ NICHES = ["chiro", "medspa", "pi_lawyers"]
 def get_niche_statuses() -> list[dict]:
     now = datetime.now()
     chiro_checkpoint = read_checkpoint("chiro")
+    chiro_quality = get_chiro_quality_metrics()
     chiro_processed = chiro_checkpoint.get("rows_processed", 0)
     chiro_expected = chiro_checkpoint.get("total_expected_rows", 150000) or 150000
     chiro_remaining = max(0, chiro_expected - chiro_processed)
-    chiro_status = "running" if chiro_remaining > 0 else "idle"
-    # STUB: realistic fake niche status payload (except chiro progress from checkpoint)
+    elapsed_human = chiro_checkpoint.get("elapsed_human")
+    elapsed_minutes = 0
+    if isinstance(elapsed_human, str):
+        chunks = elapsed_human.split()
+        for chunk in chunks:
+            if chunk.endswith("d"):
+                elapsed_minutes += int(chunk[:-1]) * 24 * 60
+            elif chunk.endswith("h"):
+                elapsed_minutes += int(chunk[:-1]) * 60
+            elif chunk.endswith("m"):
+                elapsed_minutes += int(chunk[:-1])
     return [
         {
             "name": "chiro",
             "total_records": chiro_expected,
-            "last_scrape": (now - timedelta(minutes=5)).isoformat(timespec="seconds"),
-            "status": chiro_status,
+            "last_scrape": chiro_checkpoint.get("last_scrape") or now.isoformat(timespec="seconds"),
+            "status": chiro_checkpoint.get("status", "error"),
             "records_today": chiro_processed,
-            "email_hit_rate": 62.3,
-            "dedup_rate": 18.1,
-            "email_breakdown": {"direct": 51, "generic": 11, "none": 38},
-            "records_per_min": 112,
+            "email_hit_rate": chiro_quality["email_hit_rate"],
+            "dedup_rate": None,
+            "email_breakdown": {
+                "direct": chiro_quality["direct_pct"],
+                "generic": chiro_quality["generic_pct"],
+                "none": chiro_quality["none_pct"],
+            },
+            "records_per_min": chiro_checkpoint.get("rpm"),
             "remaining_records": chiro_remaining,
-            "elapsed_minutes": 74,
+            "elapsed_minutes": elapsed_minutes,
+            "elapsed_human": elapsed_human,
+            "eta_minutes": chiro_checkpoint.get("eta_minutes"),
             "checkpoint": chiro_checkpoint,
         },
         {
@@ -63,19 +84,19 @@ def get_niche_statuses() -> list[dict]:
 
 
 def get_storage_monitor() -> dict:
-    # STUB: fake storage usage values
+    chiro_storage = get_chiro_storage()
     return {
-        "total_gb": 2000,
-        "used_gb": 1286,
-        "free_gb": 714,
-        "per_niche_gb": {"chiro": 322, "medspa": 281, "pi_lawyers": 409},
+        "total_gb": chiro_storage["total_gb"],
+        "used_gb": chiro_storage["used_gb"],
+        "free_gb": chiro_storage["free_gb"],
+        "per_niche_gb": {"chiro": chiro_storage["chiro_dataset_gb"], "medspa": 281, "pi_lawyers": 409},
     }
 
 
 def get_machine_health() -> dict:
-    # STUB: fake health telemetry
+    k6_health = get_k6_machine_health()
     return {
-        "k6": {"cpu": 36, "ram": 54, "disk": 68, "status": "healthy"},
+        "k6": k6_health,
         "pi": {"cpu": 29, "ram": 43, "disk": 41, "status": "healthy"},
         "hetzner": {"cpu": 71, "ram": 64, "disk": 52, "status": "idle"},
     }
