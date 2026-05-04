@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime
 
 from fastapi import FastAPI, Request
@@ -106,17 +107,35 @@ def _dashboard_payload():
 
 @app.on_event("startup")
 def startup():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
     _seed_state_files()
+
+
+_NOCACHE = {
+    "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+    "Pragma": "no-cache",
+}
 
 
 @app.get("/", response_class=HTMLResponse)
 def index(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request, **_dashboard_payload()})
+    return templates.TemplateResponse(
+        "index.html",
+        {"request": request, **_dashboard_payload()},
+        headers=_NOCACHE,
+    )
 
 
 @app.get("/partials/dashboard", response_class=HTMLResponse)
 def dashboard_partial(request: Request):
-    return templates.TemplateResponse("_dashboard_content.html", {"request": request, **_dashboard_payload()})
+    return templates.TemplateResponse(
+        "_dashboard_content.html",
+        {"request": request, **_dashboard_payload()},
+        headers=_NOCACHE,
+    )
 
 
 if __name__ == "__main__":

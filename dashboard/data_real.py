@@ -6,9 +6,16 @@ import shutil
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import httpx
 import psutil
 
-from config import CHECKPOINTS_PATH, PASSPORT_MOUNT, SCRAPE_HUNG_THRESHOLD_MINUTES
+from config import (
+    CHECKPOINTS_PATH,
+    HETZNER_TAILSCALE_IP,
+    PASSPORT_MOUNT,
+    PI_TAILSCALE_IP,
+    SCRAPE_HUNG_THRESHOLD_MINUTES,
+)
 
 TOTAL_EXPECTED_ROWS = {
     "chiro": 150000,
@@ -134,10 +141,26 @@ def _status_from_checkpoint(checkpoint_file: Path, remaining_rows: int) -> tuple
 def format_last_scrape_display(iso_value: str | None) -> str:
     if not iso_value:
         return "—"
-    try:
-        dt = datetime.fromisoformat(iso_value.replace("Z", "+00:00"))
-    except (TypeError, ValueError):
-        return iso_value
+    s = iso_value.strip().replace("Z", "+00:00")
+    # Drop fractional seconds if present (fromisoformat can choke on some builds)
+    if "." in s and "T" in s:
+        head, _, tail = s.partition(".")
+        tz = ""
+        for sep in ("+", "-"):
+            if sep in tail:
+                idx = tail.find(sep)
+                tz = tail[idx:]
+                break
+        s = head + tz
+    dt: datetime | None = None
+    for candidate in (s, s.replace("T", " ", 1)):
+        try:
+            dt = datetime.fromisoformat(candidate)
+            break
+        except (TypeError, ValueError):
+            continue
+    if dt is None:
+        return "—"
     hour = dt.hour % 12 or 12
     ampm = "AM" if dt.hour < 12 else "PM"
     return f"{dt.strftime('%b')} {dt.day}, {dt.year} {hour}:{dt.minute:02d} {ampm}"
@@ -361,6 +384,30 @@ def get_k6_machine_health() -> dict:
         "disk": round(disk.percent, 1),
         "status": "healthy",
     }
+
+
+def get_remote_machine_health(tailscale_ip: str, timeout: float = 2.0) -> dict:
+    """GET http://<ip>:9090/health from health_agent; offline if unreachable."""
+    try:
+        r = httpx.get(f"http://{tailscale_ip}:9090/health", timeout=timeout)
+        r.raise_for_status()
+        data = r.json()
+        return {
+            "cpu": round(float(data.get("cpu", 0)), 1),
+            "ram": round(float(data.get("ram", 0)), 1),
+            "disk": round(float(data.get("disk", 0)), 1),
+            "status": str(data.get("status", "healthy")),
+        }
+    except Exception:
+        return {"status": "offline"}
+
+
+def get_pi_machine_health() -> dict:
+    return get_remote_machine_health(PI_TAILSCALE_IP)
+
+
+def get_hetzner_machine_health() -> dict:
+    return get_remote_machine_health(HETZNER_TAILSCALE_IP)
 
 
 def get_chiro_quality_metrics() -> dict:

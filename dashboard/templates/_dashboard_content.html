@@ -1,3 +1,4 @@
+<!-- crkdev-ops dashboard: medspa/pi/storage + last_scrape_display; hard-refresh if you see old stub numbers -->
 <div class="grid gap-4 lg:grid-cols-3">
   {% for niche in niches %}
   <article class="card border {% if niche.status == 'hung' %}border-red-500{% else %}border-slate-700{% endif %}">
@@ -10,7 +11,7 @@
       <div>Today: {{ "{:,}".format(niche.records_today) }}</div>
       <div>Hit rate: {% if niche.email_hit_rate is not none %}{{ niche.email_hit_rate }}%{% else %}—{% endif %}</div>
       <div>Dedup: {% if niche.dedup_na %}N/A{% elif niche.dedup_rate is not none %}{{ niche.dedup_rate }}%{% else %}—{% endif %}</div>
-      <div>Last: {{ niche.last_scrape_display }}</div>
+      <div>Last: {{ niche.last_scrape_display | default('—', true) }}</div>
       <div>Status: {{ niche.status }}</div>
     </div>
     <div class="mt-2 text-xs text-slate-300">Direct/Generic/None: {{ niche.email_breakdown.direct }}{{ niche.email_breakdown_suffix }} / {{ niche.email_breakdown.generic }}{{ niche.email_breakdown_suffix }} / {{ niche.email_breakdown.none }}{{ niche.email_breakdown_suffix }}</div>
@@ -50,7 +51,11 @@
     {% for machine, stats in machines.items() %}
     <div class="mt-2">
       <div class="flex justify-between"><span class="capitalize">{{ machine }}</span><span class="status-dot {{ stats.status }}"></span></div>
+      {% if stats.status == 'offline' %}
+      <div class="metrics text-sm text-slate-400">Offline — health agent not reachable on :9090</div>
+      {% else %}
       <div class="metrics text-sm">CPU {{ stats.cpu }}% | RAM {{ stats.ram }}% | Disk {{ stats.disk }}%</div>
+      {% endif %}
     </div>
     {% endfor %}
   </article>

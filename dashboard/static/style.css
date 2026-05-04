@@ -39,6 +39,11 @@ body {
   background: #facc15;
 }
 
+.status-dot.offline {
+  background: #64748b;
+  animation: none;
+}
+
 .status-dot.error,
 .status-dot.hung {
   background: #ef4444;

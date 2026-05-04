@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 from random import Random
 
@@ -7,12 +8,16 @@ from config import REVENUE_GOAL, REVENUE_WEEKS
 from data_real import (
     format_last_scrape_display,
     get_chiro_quality_metrics,
+    get_hetzner_machine_health,
     get_k6_machine_health,
+    get_pi_machine_health,
     get_storage_monitor as build_storage_monitor,
     read_avvo_checkpoints,
     read_checkpoint,
     read_medspa_checkpoint,
 )
+
+logger = logging.getLogger("crkdev.ops")
 
 _rng = Random(42)
 NICHES = ["chiro", "medspa", "pi_lawyers"]
@@ -40,10 +45,25 @@ def get_niche_statuses() -> list[dict]:
     medspa = read_medspa_checkpoint()
     mq = medspa["quality"]
     mcounts = mq["email_breakdown_counts"]
+    logger.info(
+        "read_medspa_checkpoint() -> total_records=%s records_count=%s status=%s file=%s exists=%s",
+        mq.get("total_records"),
+        medspa.get("records_count"),
+        medspa.get("status"),
+        medspa.get("checkpoint_file"),
+        medspa.get("exists"),
+    )
 
     avvo = read_avvo_checkpoints()
     pq = avvo["quality"]
     pcounts = pq["email_breakdown_counts"]
+    logger.info(
+        "read_avvo_checkpoints() -> quality_total=%s summed=%s files_read=%s last_file=%s",
+        pq.get("total_records"),
+        avvo.get("total_records_summed"),
+        avvo.get("files_read"),
+        avvo.get("latest_checkpoint_file"),
+    )
 
     return [
         {
@@ -117,15 +137,22 @@ def get_niche_statuses() -> list[dict]:
 
 
 def get_storage_monitor() -> dict:
-    return build_storage_monitor()
+    out = build_storage_monitor()
+    logger.info(
+        "get_storage_monitor() <- data_real: total_gb=%s used_gb=%s free_gb=%s per_niche_gb=%s",
+        out.get("total_gb"),
+        out.get("used_gb"),
+        out.get("free_gb"),
+        out.get("per_niche_gb"),
+    )
+    return out
 
 
 def get_machine_health() -> dict:
-    k6_health = get_k6_machine_health()
     return {
-        "k6": k6_health,
-        "pi": {"cpu": 29, "ram": 43, "disk": 41, "status": "healthy"},
-        "hetzner": {"cpu": 71, "ram": 64, "disk": 52, "status": "idle"},
+        "k6": get_k6_machine_health(),
+        "pi": get_pi_machine_health(),
+        "hetzner": get_hetzner_machine_health(),
     }
 
 
